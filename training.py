@@ -48,7 +48,7 @@ class Training:
     def train(self, n_epochs):
         for i in range(n_epochs):
             lst = []
-            [lst.extend(a) for a in [self.best_memories, self.worst_memories]]
+            lst.extend(self.best_memories)
             lst.extend(random.sample(self.memory,min(len(self.memory), 25)))
             random.shuffle(lst)
             for exp in lst:
