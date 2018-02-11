@@ -60,14 +60,15 @@ class DQN:
         tf.summary.scalar("mse loss", loss_mse)
         self.summaries = tf.summary.merge_all()
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
-        self.global_step = tf.get_variable("global_step", shape=[], dtype=tf.int32)
+        optimizer = tf.train.AdamOptimizer(learning_rate=1e-3, beta1 = 0.5, beta2=0.9)
+        self.global_step = tf.Variable(0, dtype=tf.int32, name="global_step")
         self.training_step = optimizer.minimize(loss_mse, global_step=self.global_step)
 
         #last step: init all tensorflow variables
         self.sess.run(tf.global_variables_initializer())
 
-
+    def evaluate(self, state):
+        return self.sess.run(self.q_eval, feed_dict={self.state : state})
 
     def greedy_choice(self, obs):
         obs = np.reshape(obs, [1, -1])
@@ -78,7 +79,8 @@ class DQN:
         obs = np.reshape(obs, [1,-1])
         return self.sess.run(self.expl_choice, feed_dict={self.state: obs})[0][0]
 
-    def train_on_exp_batch(self, s, a, r, sn):
+    def train_on_exp(self, exp):
+        s, a, r, sn = exp.values
         summary, step, _ = self.sess.run([self.summaries, self.global_step, self.training_step], feed_dict={
             self.s:s, self.a:a, self.r:r,
                                                                           self.sn:sn})
