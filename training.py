@@ -19,22 +19,20 @@ class Training:
         self.memory = deque(maxlen=100)
         # self.worst_memories = deque(maxlen=5)
         self.best_memories = deque(maxlen=5)
+        self.random_explore = True
 
     def explore(self, n):
         for i in range(n):
             exp = self.test_explore()
 
-            # if len(self.worst_memories) == 0:
-            #     self.worst_memories.append(exp)
-            # elif exp.total_rew < avg([e.total_rew for e in self.worst_memories]):
-            #     self.worst_memories.append(exp)
 
-            if len(self.best_memories) == 0:
-                self.best_memories.append(exp)
-            elif exp.total_rew > avg([e.total_rew for e in self.best_memories]):
-                self.best_memories.append(exp)
+            if not self.random_explore:
+                if len(self.best_memories) == 0:
+                    self.best_memories.append(exp)
+                elif exp.total_rew > avg([e.total_rew for e in self.best_memories]):
+                    self.best_memories.append(exp)
 
-            self.memory.append(exp)
+                self.memory.append(exp)
 
 
     def avg_max_scores(self, n_tries):
@@ -46,13 +44,14 @@ class Training:
             return avg(scores), max(scores)
 
     def train(self, n_epochs):
-        for i in range(n_epochs):
-            lst = []
-            lst.extend(self.best_memories)
-            lst.extend(random.sample(self.memory,min(len(self.memory), 25)))
-            random.shuffle(lst)
-            for exp in lst:
-                self.dqn.train_on_exp(exp)
+        if not self.random_explore:
+            for i in range(n_epochs):
+                lst = []
+                lst.extend(self.best_memories)
+                lst.extend(random.sample(self.memory,min(len(self.memory), 25)))
+                random.shuffle(lst)
+                for exp in lst:
+                    self.dqn.train_on_exp(exp)
 
 
 
@@ -89,7 +88,10 @@ class Training:
         r = []
         sn = []
         while not done:
-            action = self.dqn.exploratory_choice(obs)
+            if self.random_explore:
+                action = self.env.action_space.sample()
+            else:
+                action = self.dqn.exploratory_choice(obs)
             s.append(obs)
             # print(action.shape)
             obs, reward, done, _ = self.env.step(action)
@@ -99,7 +101,9 @@ class Training:
 
             total_rew += reward
             # print(obs)
-        r[-1] = total_rew - 199
+
+        if total_rew >= -20:
+            self.random_explore = False
 
         return Experience(np.vstack(s), np.vstack(a), np.vstack(r), np.vstack(sn), total_rew)
 
