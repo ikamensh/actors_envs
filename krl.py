@@ -4,20 +4,22 @@ import argparse
 from PIL import Image
 import numpy as np
 import gym
-
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Flatten, Convolution2D, Permute
 from keras.optimizers import Adam
 from keras.callbacks import TensorBoard
 import keras.backend as K
+import tensorflow as tf
 
 from rl.agents.dqn import DQNAgent
 from rl.policy import LinearAnnealedPolicy, BoltzmannQPolicy, EpsGreedyQPolicy
 from rl.memory import SequentialMemory
 from rl.core import Processor
 from rl.callbacks import FileLogger, ModelIntervalCheckpoint
+from datetime import datetime, time
 
 
+logdir = "./logs/{}".format(datetime.now())
 INPUT_SHAPE = (4,)
 WINDOW_LENGTH = 4
 
@@ -34,8 +36,8 @@ class AtariProcessor(Processor):
         self.total_reward += reward
 
         if done:
-            if self.total_reward < 1:
-                reward = self.total_reward - 1
+            if self.total_reward < 0.99:
+                reward = - 1
             self.total_reward = 0.
             self.n_steps *= 0.
         
@@ -65,9 +67,8 @@ def build_model():
     input_shape = (WINDOW_LENGTH,) + INPUT_SHAPE
     model = Sequential()
     model.add(Flatten(input_shape=input_shape))
-    model.add(Dense(512, activation='selu'))
-    model.add(Dense(512, activation='selu'))
-    model.add(Dense(512, activation='selu'))
+    model.add(Dense(12, activation='selu'))
+    model.add(Dense(12, activation='selu'))
     model.add(Dense(nb_actions))
     model.add(Activation('linear'))
     print(model.summary())
@@ -99,7 +100,7 @@ policy = LinearAnnealedPolicy(EpsGreedyQPolicy(), attr='eps', value_max=1., valu
 dqn = DQNAgent(model=model, nb_actions=nb_actions, policy=policy, memory=memory,
                processor=processor, nb_steps_warmup=50000, gamma=.99, target_model_update=10000,
                train_interval=4, delta_clip=1.)
-dqn.compile(Adam(lr=.00025), metrics=['mae'])
+dqn.compile(Adam(lr=.025), metrics=['mae'])
 
 if args.mode == 'train':
     # Okay, now it's time to learn something! We capture the interrupt exception so that training
@@ -109,8 +110,11 @@ if args.mode == 'train':
     log_filename = 'dqn_{}_log.json'.format(args.env_name)
     callbacks = [ModelIntervalCheckpoint(checkpoint_weights_filename, interval=250000)]
     callbacks += [FileLogger(log_filename, interval=100)]
-    callbacks += [TensorBoard()] # requires 'requests' library
+    tb = TensorBoard(log_dir=logdir)
+    callbacks += [tb]
     dqn.fit(env, callbacks=callbacks, nb_steps=1750000, log_interval=10000, verbose=2)
+
+    sess = K.get_session()
 
     # After training is done, we save the final weights one more time.
     dqn.save_weights(weights_filename, overwrite=True)
